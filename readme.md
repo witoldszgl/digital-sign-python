@@ -2,9 +2,9 @@
 
 ## Opis / Description
 
-Ten projekt pokazuje, jak generować i weryfikować podpis cyfrowy w Pythonie przy użyciu biblioteki PyCryptodome.
+Ten projekt pokazuje, jak generować klucze RSA, wyświetlać je, a następnie podpisywać dowolne pliki w Pythonie przy użyciu biblioteki PyCryptodome.
 
-This project demonstrates how to generate and verify a digital signature in Python using the PyCryptodome library.
+This project demonstrates how to generate an RSA key pair, display them, and then sign arbitrary files in Python using the PyCryptodome library.
 
 ---
 
@@ -18,16 +18,12 @@ This project demonstrates how to generate and verify a digital signature in Pyth
 ## Struktura projektu / Project Structure
 
 ```
-├── signature.py     # skrypt generujący klucze, skróty i podpis, a następnie weryfikujący
-├── verify.py        # (opcjonalne) samodzielny skrypt do weryfikacji istniejących plików
-└── out/             # katalog wyjściowy z wygenerowanymi plikami
+├── signature.py     # główny skrypt do generowania kluczy, wyświetlania ich i podpisywania plików
+├── README.md        # ta instrukcja
+└── out/             # katalog wyjściowy na wygenerowane klucze i ziarnko TRNG
     ├── trng_seed.bin
     ├── private.pem
-    ├── public.pem
-    ├── message_A.bin
-    ├── hash_A.bin
-    ├── signature.sig
-    └── hash_B.bin
+    └── public.pem
 ```
 
 ---
@@ -41,34 +37,17 @@ This project demonstrates how to generate and verify a digital signature in Pyth
    ```bash
    pip install pycryptodome
    ```
-2. Uruchom główny skrypt:
+2. Uruchom skrypt:
 
    ```bash
    python signature.py
    ```
-3. W katalogu `out/` znajdziesz wygenerowane pliki:
+3. Skrypt:
 
-   * `trng_seed.bin`  – surowy ciąg losowy (TRNG)
-   * `private.pem`    – klucz prywatny (PEM)
-   * `public.pem`     – klucz publiczny (PEM)
-   * `message_A.bin`  – podpisywana wiadomość
-   * `hash_A.bin`     – skrót SHA3-256 wiadomości
-   * `signature.sig`  – podpis RSA
-   * `hash_B.bin`     – skrót tej samej wiadomości obliczony ponownie
-4. (Opcjonalnie) Zweryfikuj podpis osobno:
-
-   ```bash
-   python verify.py
-   ```
-
-   lub za pomocą OpenSSL:
-
-   ```bash
-   openssl dgst -sha3-256 \
-     -verify out/public.pem \
-     -signature out/signature.sig \
-     out/message_A.bin
-   ```
+   1. Wygeneruje parę kluczy RSA (private.pem i public.pem) oraz plik `seed.bin` w katalogu `out/`, jeśli ich tam nie ma.
+   2. Wyświetli w terminalu oba klucze w formacie PEM.
+   3. Poprosi o podanie ścieżki do pliku, który chcesz podpisać.
+   4. Utworzy plik z podpisem o tej samej nazwie z dopiskiem `.sig` obok oryginału.
 
 ### English
 
@@ -77,31 +56,52 @@ This project demonstrates how to generate and verify a digital signature in Pyth
    ```bash
    pip install pycryptodome
    ```
-2. Run the main script:
+2. Run the script:
 
    ```bash
    python signature.py
    ```
-3. Check the `out/` directory for generated files:
+3. The script will:
 
-   * `trng_seed.bin`  – raw random seed (TRNG)
-   * `private.pem`    – private RSA key (PEM)
-   * `public.pem`     – public RSA key (PEM)
-   * `message_A.bin`  – the message being signed
-   * `hash_A.bin`     – SHA3-256 hash of the message
-   * `signature.sig`  – RSA signature of the hash
-   * `hash_B.bin`     – SHA3-256 hash recomputed by verifier
-4. (Optional) Verify the signature separately:
+   1. Generate an RSA key pair (`private.pem` and `public.pem`) and a raw TRNG seed file (`seed.bin`) in the `out/` directory if they do not already exist.
+   2. Print both keys in PEM format to the console.
+   3. Prompt you to enter the path to the file you want to sign.
+   4. Create a signature file named `<original>.sig` next to the original file.
 
-   ```bash
-   python verify.py
-   ```
+---
 
-   or using OpenSSL:
+## Weryfikacja (opcjonalnie) / Verification (optional)
 
-   ```bash
-   openssl dgst -sha3-256 \
-     -verify out/public.pem \
-     -signature out/signature.sig \
-     out/message_A.bin
-   ```
+Aktualny skrypt nie zawiera osobnej weryfikacji, ale możesz użyć poniższego fragmentu lub biblioteki OpenSSL.
+
+**Przykład w Pythonie:**
+
+```python
+from Cryptodome.PublicKey import RSA
+from Cryptodome.Signature import pkcs1_15
+from Cryptodome.Hash import SHA3_256
+
+# Załaduj klucz publiczny
+pub_key = RSA.import_key(open('out/public.pem','rb').read())
+
+def verify(file_path, sig_path):
+    data = open(file_path,'rb').read()
+    h = SHA3_256.new(data)
+    sig = open(sig_path,'rb').read()
+    try:
+        pkcs1_15.new(pub_key).verify(h, sig)
+        print('Signature valid')
+    except (ValueError, TypeError):
+        print('Signature invalid')
+
+verify('ścieżka/do/pliku','ścieżka/do/pliku.sig')
+```
+
+**OpenSSL:**
+
+```bash
+openssl dgst -sha3-256 \
+  -verify out/public.pem \
+  -signature yourfile.ext.sig \
+  yourfile.ext
+```

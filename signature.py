@@ -4,50 +4,65 @@ from Cryptodome.Signature import pkcs1_15
 from Cryptodome.Hash import SHA3_256
 import os
 
+
 def save_file(path: str, data: bytes):
+    """Save bytes to a file, creating directories as needed."""
+    dirpath = os.path.dirname(path)
+    if dirpath:
+        os.makedirs(dirpath, exist_ok=True)
     with open(path, "wb") as f:
         f.write(data)
     print(f"  • saved: {path}")
 
-def main():
-    os.makedirs("out", exist_ok=True)
 
-    # --- 1) TRNG: get random seed and save it ---
+def generate_keys(out_dir: str = "out"):
+    """Generate RSA key pair and save to out_dir."""
+    os.makedirs(out_dir, exist_ok=True)
     seed = get_random_bytes(32)
-    save_file("out/trng_seed.bin", seed)
-
-    # --- 2) RSA: generate private/public key pair using TRNG ---
+    save_file(os.path.join(out_dir, "seed.bin"), seed)
 
     key = RSA.generate(2048, randfunc=get_random_bytes)
-    priv_key = key
-    pub_key = key.publickey()
+    save_file(os.path.join(out_dir, "private.pem"), key.export_key(format="PEM"))
+    save_file(os.path.join(out_dir, "public.pem"), key.publickey().export_key(format="PEM"))
+    return key, key.publickey()
 
-    save_file("out/private.pem", priv_key.export_key(format="PEM"))
-    save_file("out/public.pem", pub_key.export_key(format="PEM"))
 
-    # --- 3) A: define the message and save it ---
-    A = b"Test message"
-    save_file("out/message_A.bin", A)
+def sign_file(file_path: str, priv_key: RSA.RsaKey):
+    """Compute SHA3-256 hash of file and write a .sig signature alongside."""
+    if not os.path.isfile(file_path):
+        print(f"Error: plik '{file_path}' nie istnieje.")
+        return
+    data = open(file_path, "rb").read()
+    h = SHA3_256.new(data)
+    signature = pkcs1_15.new(priv_key).sign(h)
+    sig_path = file_path + ".sig"
+    save_file(sig_path, signature)
+    print(f"Signed {file_path} -> {sig_path}")
 
-    # --- 4) A: compute SHA3-256 hash (#A) and save ---
-    hash_A = SHA3_256.new(A)
-    save_file("out/hash_A.bin", hash_A.digest())
 
-    # --- 5) A: sign the hash with private key and save ---
-    signature = pkcs1_15.new(priv_key).sign(hash_A)
-    save_file("out/signature.sig", signature)
+def main():
+    # Przygotuj katalog na klucze
+    os.makedirs("out", exist_ok=True)
+    key_path = os.path.join("out", "private.pem")
+    pub_path = os.path.join("out", "public.pem")
 
-    # --- 6) B: read message, compute hash (#B) and save ---
-    B = open("out/message_A.bin", "rb").read()
-    hash_B = SHA3_256.new(B)
-    save_file("out/hash_B.bin", hash_B.digest())
+    # Załaduj lub wygeneruj klucze
+    if os.path.exists(key_path) and os.path.exists(pub_path):
+        priv_key = RSA.import_key(open(key_path, 'rb').read())
+        pub_key = RSA.import_key(open(pub_path, 'rb').read())
+    else:
+        priv_key, pub_key = generate_keys()
 
-    # --- 7) B: verify signature using public key ---
-    try:
-        pkcs1_15.new(pub_key).verify(hash_B, signature)
-        print("Verification: signature is valid")
-    except (ValueError, TypeError):
-        print("Verification: signature is invalid")
+    # Wyświetl klucze w terminalu
+    print("--- Private Key (PEM) ---")
+    print(priv_key.export_key().decode())
+    print("--- Public Key (PEM) ---")
+    print(pub_key.export_key().decode())
+
+    # Zapytaj użytkownika o plik do podpisu
+    file_path = input("Podaj ścieżkę do pliku do podpisania: ")
+    sign_file(file_path, priv_key)
+
 
 if __name__ == "__main__":
     main()
