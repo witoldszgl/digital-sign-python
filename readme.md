@@ -21,7 +21,7 @@ This project demonstrates how to generate an RSA key pair, display them, and the
 ├── signature.py     # główny skrypt do generowania kluczy, wyświetlania ich i podpisywania plików
 ├── README.md        # ta instrukcja
 └── out/             # katalog wyjściowy na wygenerowane klucze i ziarnko TRNG
-    ├── trng_seed.bin
+    ├── seed.bin
     ├── private.pem
     └── public.pem
 ```
